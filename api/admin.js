@@ -59,6 +59,20 @@ module.exports = async function handler(req, res) {
       return respond(res, 200, { success: true });
     }
 
+    if (action === 'resetTestData') {
+      const payoutDelete = await fetch(`${url}/rest/v1/winner_payouts?id=not.is.null`, { method: 'DELETE', headers: h });
+      if (!payoutDelete.ok) throw new Error(await payoutDelete.text());
+      const entriesDelete = await fetch(`${url}/rest/v1/giveaway_entries?id=not.is.null`, { method: 'DELETE', headers: h });
+      if (!entriesDelete.ok) throw new Error(await entriesDelete.text());
+      const configReset = await fetch(`${url}/rest/v1/giveaway_config?id=eq.1`, {
+        method: 'PATCH',
+        headers: h,
+        body: JSON.stringify({ winner_count: 0, is_open: true })
+      });
+      if (!configReset.ok) throw new Error(await configReset.text());
+      return respond(res, 200, { success: true, message: 'Test data cleared. Giveaway is ready at 0/10 winners.' });
+    }
+
     const payoutResp = await fetch(`${url}/rest/v1/winner_payouts?select=id,entry_id,account_name,bank_name,account_number_encrypted,payment_status,submitted_at,paid_at&order=submitted_at.desc`, { headers: h });
     if (!payoutResp.ok) throw new Error(await payoutResp.text());
     const payouts = await payoutResp.json();
@@ -67,6 +81,10 @@ module.exports = async function handler(req, res) {
     if (!entriesResp.ok) throw new Error(await entriesResp.text());
     const entries = await entriesResp.json();
     const byId = Object.fromEntries((entries || []).map(e => [e.id, e]));
+
+    const configResp = await fetch(`${url}/rest/v1/giveaway_config?id=eq.1&select=max_winners,winner_count,is_open&limit=1`, { headers: h });
+    const configs = await configResp.json();
+    const config = Array.isArray(configs) ? configs[0] : null;
 
     const rows = (payouts || []).map(p => ({
       id: p.id,
@@ -79,9 +97,9 @@ module.exports = async function handler(req, res) {
       paidAt: p.paid_at
     }));
 
-    return respond(res, 200, { payouts: rows });
+    return respond(res, 200, { payouts: rows, config });
   } catch (error) {
     console.error('admin error', error);
-    return respond(res, 500, { error: 'Could not load admin data.' });
+    return respond(res, 500, { error: 'Could not complete admin action.' });
   }
 };
