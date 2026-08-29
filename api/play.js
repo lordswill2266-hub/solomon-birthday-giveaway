@@ -61,7 +61,9 @@ module.exports = async function handler(req, res) {
     if (!config || !config.is_open) return json(res, 403, { error: 'This giveaway is currently closed.' });
 
     const hasPrizes = Number(config.winner_count) < Number(config.max_winners);
-    const winner = hasPrizes && crypto.randomInt(0, 12) === 0;
+
+    // TRIAL MODE: every fresh valid entry wins until the 10-winner cap is reached.
+    const winner = hasPrizes;
     const code = winner ? claimCode() : null;
 
     const insert = async (isWinner, codeValue) => fetch(`${url}/rest/v1/giveaway_entries`, {
@@ -95,7 +97,8 @@ module.exports = async function handler(req, res) {
     return json(res, 200, {
       alreadyPlayed: false,
       winner: actualWinner,
-      claimCode: actualWinner ? actual.claim_code : null
+      claimCode: actualWinner ? actual.claim_code : null,
+      trialMode: true
     }, `birthday_played=1; Path=/; Max-Age=31536000; HttpOnly; Secure; SameSite=Lax`);
   } catch (error) {
     console.error('giveaway play error', error);
